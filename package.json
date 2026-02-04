@@ -1,0 +1,19 @@
+{
+  "name": "aschedual",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "scripts": {
+    "dev:web": "pnpm -C apps/web dev",
+    "dev:ext": "pnpm -C apps/extension dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm -C apps/web db:generate",
+    "db:migrate": "pnpm -C apps/web db:migrate"
+  },
+  "devDependencies": {
+    "eslint": "^9.8.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  }
+}

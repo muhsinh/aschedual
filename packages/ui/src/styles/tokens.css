@@ -1,0 +1,16 @@
+:root {
+  --bg: #0b0f0d;
+  --surface: #111614;
+  --surface-elev: #161c19;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #e5ece8;
+  --text-muted: #a2b0a7;
+  --accent: #0f4a3a;
+  --accent-hover: #13604b;
+  --accent-pressed: #0c3a2d;
+  --focus: rgba(20, 120, 90, 0.4);
+}
+
+.dark {
+  color-scheme: dark;
+}

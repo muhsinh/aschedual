@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@aschedual/shared": ["packages/shared/src/index.ts"],
+      "@aschedual/scheduler": ["packages/scheduler/src/index.ts"],
+      "@aschedual/ui": ["packages/ui/src/index.ts"]
+    }
+  }
+}
