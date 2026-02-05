@@ -20,7 +20,10 @@ export async function generateProposalFromCapture(args: {
 }) {
   const provider = process.env.AI_PROVIDER ?? "openai";
 
-  if (provider === "openai" && process.env.AI_PROVIDER_KEY) {
+  if (
+    (provider === "openai" || provider === "openrouter") &&
+    process.env.AI_PROVIDER_KEY
+  ) {
     try {
       const parsed = await parseWithOpenAI(args);
       const valid = parsedProposalSchema.parse(parsed);

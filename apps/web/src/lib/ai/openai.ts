@@ -7,13 +7,62 @@ type OpenAIInput = {
   durationMinutes: number;
 };
 
-const MODEL = "gpt-4o-mini";
+const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_BASE_URL = "https://api.openai.com/v1";
+
+type ChatCompletionResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | Array<{ text?: string }>;
+    };
+  }>;
+};
+
+function normalizeBaseUrl(value?: string) {
+  if (!value) {
+    return DEFAULT_BASE_URL;
+  }
+  return value.replace(/\/+$/, "");
+}
+
+function buildHeaders(provider: string, apiKey: string) {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json"
+  };
+
+  if (provider === "openrouter") {
+    if (process.env.OPENROUTER_SITE_URL) {
+      headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL;
+    }
+    if (process.env.OPENROUTER_APP_NAME) {
+      headers["X-Title"] = process.env.OPENROUTER_APP_NAME;
+    }
+  }
+
+  return headers;
+}
+
+function extractContentText(content?: string | Array<{ text?: string }>) {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    const textPart = content.find((part) => typeof part?.text === "string");
+    return textPart?.text;
+  }
+  return null;
+}
 
 export async function parseWithOpenAI(input: OpenAIInput) {
   const apiKey = process.env.AI_PROVIDER_KEY;
   if (!apiKey) {
     throw new Error("AI_PROVIDER_KEY is not set");
   }
+
+  const provider = process.env.AI_PROVIDER ?? "openai";
+  const baseUrl = normalizeBaseUrl(process.env.AI_BASE_URL);
+  const model = process.env.AI_MODEL ?? DEFAULT_MODEL;
 
   const prompt = {
     task: "Extract a scheduling proposal from a captured webpage selection.",
@@ -37,15 +86,12 @@ export async function parseWithOpenAI(input: OpenAIInput) {
     }
   };
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
+    headers: buildHeaders(provider, apiKey),
     body: JSON.stringify({
-      model: MODEL,
-      input: [
+      model,
+      messages: [
         {
           role: "system",
           content:
@@ -64,15 +110,8 @@ export async function parseWithOpenAI(input: OpenAIInput) {
     throw new Error(`OpenAI request failed with ${response.status}`);
   }
 
-  const json = (await response.json()) as {
-    output_text?: string;
-    output?: Array<{ content?: Array<{ text?: string }> }>;
-  };
-
-  const text =
-    json.output_text ??
-    json.output?.[0]?.content?.find((entry) => typeof entry.text === "string")
-      ?.text;
+  const json = (await response.json()) as ChatCompletionResponse;
+  const text = extractContentText(json.choices?.[0]?.message?.content);
 
   if (!text) {
     throw new Error("OpenAI returned an empty response");
