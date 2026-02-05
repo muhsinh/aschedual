@@ -1,4 +1,4 @@
-import { createClient, type RedisClientType } from "redis";
+import { createClient } from "redis";
 
 type RateLimitResult = {
   allowed: boolean;
@@ -11,7 +11,7 @@ type MemoryState = {
 };
 
 const memoryStore = new Map<string, MemoryState>();
-let redisClientPromise: Promise<RedisClientType | null> | null = null;
+let redisClientPromise: Promise<any | null> | null = null;
 
 async function getRedisClient() {
   const url = process.env.RATE_LIMIT_REDIS_URL;

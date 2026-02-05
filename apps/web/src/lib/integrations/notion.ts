@@ -131,9 +131,12 @@ export async function listNotionTargets(userId: string) {
   ]);
 
   const databases = databaseSearch.results.map((result) => {
+    const databaseResult = result as any;
     const title =
       result.object === "database"
-        ? result.title?.map((entry) => entry.plain_text).join("")
+        ? databaseResult.title
+            ?.map((entry: { plain_text: string }) => entry.plain_text)
+            .join("")
         : "";
     return {
       id: result.id,
@@ -207,7 +210,7 @@ export async function writeNotionApproval(args: {
 
     return {
       pageId: page.id,
-      url: page.url,
+      url: (page as any).url ?? null,
       raw: page
     };
   }
@@ -243,7 +246,7 @@ export async function writeNotionApproval(args: {
 
   return {
     pageId: page.id,
-    url: page.url,
+    url: (page as any).url ?? null,
     raw: page
   };
 }
