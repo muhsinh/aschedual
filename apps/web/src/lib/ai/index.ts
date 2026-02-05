@@ -1,27 +1,43 @@
-import {
-  captureInputSchema,
-  parsedItemSchema,
-  type CaptureInput,
-  type ParsedItem
-} from "@aschedual/shared";
-import { heuristicParse } from "./heuristic";
-import { openaiParse } from "./openai";
+import { z } from "zod";
+import { buildFallbackProposal } from "./fallback";
+import { parseWithOpenAI } from "./openai";
 
-export async function parseCapture(input: CaptureInput): Promise<ParsedItem> {
-  const validated = captureInputSchema.parse(input);
+const parsedProposalSchema = z.object({
+  parsedTitle: z.string().min(1).max(500),
+  startAt: z.string().datetime(),
+  endAt: z.string().datetime(),
+  location: z.string().max(500).nullable().optional(),
+  notes: z.string().max(5000).nullable().optional()
+});
+
+export async function generateProposalFromCapture(args: {
+  title: string;
+  url: string;
+  selectedText: string;
+  snippet?: string | null;
+  timezone: string;
+  durationMinutes: number;
+}) {
   const provider = process.env.AI_PROVIDER ?? "openai";
 
-  let raw: unknown;
   if (provider === "openai" && process.env.AI_PROVIDER_KEY) {
     try {
-      raw = await openaiParse(validated, false);
-      return parsedItemSchema.parse(raw);
+      const parsed = await parseWithOpenAI(args);
+      const valid = parsedProposalSchema.parse(parsed);
+      return {
+        ...valid,
+        timezone: args.timezone
+      };
     } catch {
-      raw = await openaiParse(validated, true);
-      return parsedItemSchema.parse(raw);
+      // deterministic fallback below
     }
   }
 
-  raw = heuristicParse(validated);
-  return parsedItemSchema.parse(raw);
+  return buildFallbackProposal({
+    title: args.title,
+    selectedText: args.selectedText,
+    snippet: args.snippet,
+    timezone: args.timezone,
+    durationMinutes: args.durationMinutes
+  });
 }

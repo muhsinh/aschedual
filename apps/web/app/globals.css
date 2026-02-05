@@ -1,16 +1,51 @@
-@import "@aschedual/ui/src/styles/tokens.css";
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-bg: #0b0f0e;
+  --color-fg: #e7ecea;
+  --color-muted: #a3b1ab;
+  --color-panel: #111715;
+  --color-panel-2: #141d1a;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-primary: #0f6b3a;
+  --color-primary-hover: #0b4d2a;
+  --color-primary-highlight: #16a34a;
+  --color-seafoam-1: #0b2a24;
+  --color-seafoam-2: #0d3b33;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 html,
 body {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
+.section-atmosphere {
+  background-image:
+    radial-gradient(
+      800px circle at 20% 20%,
+      color-mix(in oklab, var(--color-seafoam-1) 12%, transparent),
+      transparent 65%
+    ),
+    radial-gradient(
+      900px circle at 85% 80%,
+      color-mix(in oklab, var(--color-seafoam-2) 10%, transparent),
+      transparent 70%
+    );
+}
+
+.subtle-divider {
+  border-top: 1px solid var(--color-border);
 }

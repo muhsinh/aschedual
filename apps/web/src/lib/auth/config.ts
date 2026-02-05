@@ -1,13 +1,11 @@
-import Google from "next-auth/providers/google";
 import type { NextAuthConfig } from "next-auth";
-import { db } from "@/db";
-import { entitlements, googleConnections, users } from "@/db/schema";
+import Google from "next-auth/providers/google";
 import { eq } from "drizzle-orm";
-import { encrypt } from "@/lib/crypto/encryption";
-import { ENTITLEMENT_PLANS } from "@aschedual/shared";
-import { syncCalendarsForUser } from "@/lib/google/calendar";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { upsertIntegration, upsertUser } from "@/lib/integrations/store";
 
-const googleScopes = [
+export const googleScopes = [
   "openid",
   "email",
   "profile",
@@ -15,8 +13,17 @@ const googleScopes = [
   "https://www.googleapis.com/auth/calendar.readonly"
 ];
 
+function parseScopes(scope: string | null | undefined) {
+  if (!scope) return [];
+  return scope
+    .split(" ")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 export const authConfig: NextAuthConfig = {
   secret: process.env.AUTH_SECRET,
+  session: { strategy: "jwt" },
   providers: [
     Google({
       clientId: process.env.GOOGLE_OAUTH_CLIENT_ID ?? "",
@@ -25,97 +32,57 @@ export const authConfig: NextAuthConfig = {
         params: {
           access_type: "offline",
           prompt: "consent",
+          include_granted_scopes: "true",
           scope: googleScopes.join(" ")
         }
       }
     })
   ],
-  session: { strategy: "jwt" },
   callbacks: {
-    async signIn({ account, profile }) {
-      if (!account || account.provider !== "google") return false;
-      const googleSub = account.providerAccountId;
-      const email = profile?.email ?? "";
-      const name = profile?.name ?? "";
-      const avatar = profile?.picture ?? "";
-
-      const existing = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.google_sub, googleSub))
-        .limit(1);
-
-      let userId = existing[0]?.id;
-      if (!userId) {
-        const inserted = await db
-          .insert(users)
-          .values({
-            google_sub: googleSub,
-            email,
-            name,
-            avatar_url: avatar
-          })
-          .returning({ id: users.id });
-        userId = inserted[0]?.id;
+    async signIn({ user, account }) {
+      if (!user.email) {
+        return false;
       }
 
-      if (!userId) return false;
+      const userId = await upsertUser({
+        email: user.email,
+        name: user.name,
+        image: user.image
+      });
 
-      if (account.refresh_token) {
-        await db
-          .delete(googleConnections)
-          .where(eq(googleConnections.user_id, userId));
-
-        await db.insert(googleConnections).values({
-          user_id: userId,
-          refresh_token_enc: encrypt(account.refresh_token),
-          access_token_enc: account.access_token
-            ? encrypt(account.access_token)
-            : null,
-          expiry: account.expires_at
+      if (account?.provider === "google" && account.access_token) {
+        await upsertIntegration({
+          userId,
+          provider: "google",
+          accessToken: account.access_token,
+          refreshToken: account.refresh_token,
+          expiresAt: account.expires_at
             ? new Date(account.expires_at * 1000)
             : null,
-          scopes: account.scope ?? ""
+          tokenType: account.token_type,
+          scopes: parseScopes(account.scope)
         });
-      }
-
-      await db
-        .insert(entitlements)
-        .values({
-          user_id: userId,
-          plan: "FREE",
-          max_calendars: ENTITLEMENT_PLANS.FREE.max_calendars,
-          max_notion_workspaces: ENTITLEMENT_PLANS.FREE.max_notion_workspaces,
-          max_notion_dbs: ENTITLEMENT_PLANS.FREE.max_notion_dbs,
-          saves_per_month: ENTITLEMENT_PLANS.FREE.saves_per_month,
-          features_json: ENTITLEMENT_PLANS.FREE.features
-        })
-        .onConflictDoNothing();
-
-      try {
-        await syncCalendarsForUser(userId);
-      } catch {
-        // Swallow calendar sync failures on sign-in
       }
 
       return true;
     },
-    async jwt({ token, account }) {
-      if (account?.provider === "google") {
-        const googleSub = account.providerAccountId;
-        const existing = await db
+    async jwt({ token, user }) {
+      if (user?.email) {
+        const rows = await db
           .select({ id: users.id })
           .from(users)
-          .where(eq(users.google_sub, googleSub))
+          .where(eq(users.email, user.email))
           .limit(1);
-        token.userId = existing[0]?.id;
+        token.userId = rows[0]?.id;
       }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.userId) {
-        (session.user as { id?: string }).id = token.userId as string;
+        session.user.id = token.userId as string;
       }
+
       return session;
     }
   }

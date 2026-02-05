@@ -1,12 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@aschedual/ui"],
-  experimental: {
-    serverActions: {
-      allowedOrigins: ["localhost:3000"]
-    }
-  }
+  transpilePackages: ["@aschedual/shared"]
 };
 
 export default nextConfig;

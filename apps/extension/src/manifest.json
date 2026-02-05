@@ -1,21 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Aschedual",
-  "version": "0.1.0",
+  "version": "0.0.1",
+  "description": "Placeholder manifest scaffold for the Aschedual extension.",
   "action": {
-    "default_title": "Aschedual",
-    "default_popup": "src/popup/index.html"
+    "default_title": "Aschedual"
   },
-  "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": ["http://localhost:3000/*"],
-  "background": {
-    "service_worker": "src/background.ts",
-    "type": "module"
-  },
-  "content_scripts": [
-    {
-      "matches": ["http://localhost:3000/extension/connect*"],
-      "js": ["src/content.ts"]
-    }
-  ]
+  "permissions": ["storage"],
+  "host_permissions": ["http://localhost:3000/*"]
 }

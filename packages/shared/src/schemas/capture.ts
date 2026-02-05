@@ -1,21 +1,28 @@
 import { z } from "zod";
 
-export const captureInputSchema = z
-  .object({
-    url: z.string().url(),
-    title: z.string().min(1),
-    selected_text: z.string().optional().nullable(),
-    context_snippet: z.string().optional().nullable(),
-    use_page_context: z.boolean()
-  })
-  .superRefine((val, ctx) => {
-    if (val.use_page_context && !val.context_snippet) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "context_snippet is required when use_page_context is true",
-        path: ["context_snippet"]
-      });
-    }
-  });
+export const capturePayloadSchema = z.object({
+  url: z.string().url(),
+  title: z.string().min(1).max(500),
+  selectedText: z.string().min(1).max(20000),
+  snippet: z.string().min(1).max(5000).optional().nullable()
+});
 
-export type CaptureInput = z.infer<typeof captureInputSchema>;
+export const captureResponseSchema = z.object({
+  capture: z.object({
+    id: z.string().uuid(),
+    userId: z.string().uuid(),
+    url: z.string().url(),
+    title: z.string(),
+    selectedText: z.string(),
+    snippet: z.string().nullable(),
+    createdAt: z.string().datetime()
+  })
+});
+
+export const clipRequestSchema = z.object({
+  capture: capturePayloadSchema
+});
+
+export type CapturePayload = z.infer<typeof capturePayloadSchema>;
+export type CaptureResponse = z.infer<typeof captureResponseSchema>;
+export type ClipRequest = z.infer<typeof clipRequestSchema>;

@@ -1,290 +1,133 @@
 # Aschedual
 
-Premium-feeling personal productivity capture + scheduling system.
+Aschedual is a privacy-first scheduling workflow for a Chrome extension + web app.
 
-**Core behavior**
-- Chrome Extension (MV3) is the primary capture + approve interface.
-- Web app handles onboarding, settings, destinations, billing, and history.
-- Google Sign‑In is the only required account system.
-- Google Calendar is the scheduling source of truth.
-- Notion is optional and can be connected later.
-- Scheduling is propose‑and‑approve only (no auto placement without explicit approval).
-- Privacy-first capture: selected text + minimal snippet only (context opt‑in per save).
+Flow:
+1. Extension captures selected text, URL, and title.
+2. Web API stores capture and proposes a schedule item.
+3. User edits and approves in the web inbox.
+4. Approval writes to Google Calendar (source of truth) and optionally Notion.
 
----
+## Monorepo layout
+- `apps/web` - Next.js 14 App Router app + API routes
+- `apps/extension` - MV3 placeholder scaffold (manifest + docs only)
+- `packages/shared` - shared Zod schemas and API payload types
 
-## Workspace
-Monorepo (pnpm workspaces):
-
-- `apps/web` — Next.js App Router web app (Auth, settings, billing, destinations)
-- `apps/extension` — Chrome MV3 extension (capture + approve UI)
-- `packages/ui` — shared UI + theme tokens
-- `packages/shared` — shared types, zod schemas, constants
-- `packages/scheduler` — pure scheduling engine + tests
-
----
-
-## Requirements
-- Node.js 20+ (tested with 22)
+## Prerequisites
+- Node.js 20+
 - pnpm 10+
-- Postgres (Supabase recommended)
-- Google OAuth credentials (Calendar API enabled)
-- Optional: Notion OAuth app
-- Optional: Stripe keys for billing
+- Supabase Postgres project (or compatible Postgres)
+- Google OAuth credentials
+- Notion OAuth app (optional)
 
----
-
-## Quick start
+## Environment setup
+1. Copy template:
 ```bash
-pnpm install
-cp .env.example .env
+cp .env.example .env.local
 ```
 
-### 1) Configure environment variables
-Fill in `.env` (all values are server-only unless noted):
+2. Configure Git hooks path:
+```bash
+git config core.hooksPath .githooks
+```
 
-**Core**
-- `DATABASE_URL` — Postgres connection string (Supabase recommended)
-- `ENCRYPTION_KEY` — base64 32 bytes (AES‑256‑GCM)
-- `AUTH_SECRET` — Auth.js secret
-- `AUTH_URL` — `http://localhost:3000`
-
-**Google OAuth**
+3. Fill `.env.local` values:
+- `DATABASE_URL`
+- `ENCRYPTION_KEY` (base64 32-byte key)
 - `GOOGLE_OAUTH_CLIENT_ID`
 - `GOOGLE_OAUTH_CLIENT_SECRET`
+- `AUTH_SECRET`
+- `AUTH_URL` (`http://localhost:3000` locally)
+- `NOTION_OAUTH_CLIENT_ID` (optional)
+- `NOTION_OAUTH_CLIENT_SECRET` (optional)
+- `AI_PROVIDER` (`openai`)
+- `AI_PROVIDER_KEY` (optional, fallback parser works without it)
+- `RATE_LIMIT_REDIS_URL` (optional)
+- `SUPABASE_PROJECT_URL` (optional)
+- `SUPABASE_SERVICE_ROLE_KEY` (optional)
 
-**AI Provider**
-- `AI_PROVIDER` — default `openai`
-- `AI_PROVIDER_KEY` — OpenAI key
+## Supabase setup (`DATABASE_URL`)
+1. Create a Supabase project.
+2. Open Project Settings -> Database.
+3. Copy the connection string and set `DATABASE_URL`.
+4. Ensure the DB has `pgcrypto` extension enabled for `gen_random_uuid()`.
 
-**Stripe (optional)**
-- `STRIPE_SECRET_KEY`
-- `STRIPE_PUBLISHABLE_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRICE_ID_PRO`
-- `STRIPE_PRICE_ID_POWER`
-
-**Notion (optional)**
-- `NOTION_OAUTH_CLIENT_ID`
-- `NOTION_OAUTH_CLIENT_SECRET`
-
-**Rate limiting (optional)**
-- `RATE_LIMIT_REDIS_URL` — Upstash (in-memory fallback for dev)
-
-**Supabase (optional)**
-- `SUPABASE_PROJECT_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-### 2) Database
-```bash
-pnpm -C apps/web db:generate
-pnpm -C apps/web db:migrate
-```
-
-### 3) Run dev servers
-```bash
-pnpm dev:web
-pnpm dev:ext
-```
-
-Web app runs at `http://localhost:3000`.
-
----
-
-## Chrome Extension (MV3)
-### Load unpacked extension
-1. Build or run dev: `pnpm dev:ext`
-2. Go to `chrome://extensions`
-3. Enable **Developer mode**
-4. Click **Load unpacked**
-5. Select `apps/extension`
-
-### Connect extension to account
-1. In popup, click **Connect extension**
-2. A tab opens at `/extension/connect`
-3. Token is passed to the extension and stored in `chrome.storage.local`
-
----
-
-## Google OAuth scopes (minimum set)
-Configured in Auth.js with:
+## Google OAuth setup (testing mode)
+1. In Google Cloud Console, create or select a project.
+2. Configure OAuth consent screen in **Testing** mode.
+3. Add scopes:
+- `openid`
+- `email`
+- `profile`
 - `https://www.googleapis.com/auth/calendar.events`
 - `https://www.googleapis.com/auth/calendar.readonly`
+4. Create OAuth client credentials (Web application).
+5. Add redirect URIs:
+- `http://localhost:3000/api/auth/callback/google`
+- `https://<your-vercel-domain>/api/auth/callback/google`
+6. Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`.
 
-This combination supports free/busy lookup and event creation without full calendar access.
+## Notion OAuth setup
+1. Create a public integration at [Notion Developers](https://www.notion.so/profile/integrations).
+2. Configure redirect URIs:
+- `http://localhost:3000/api/integrations/notion/callback`
+- `https://<your-vercel-domain>/api/integrations/notion/callback`
+3. Configure policy URLs in Notion app settings:
+- Privacy policy URL
+- Terms of use URL
+4. Set `NOTION_OAUTH_CLIENT_ID` and `NOTION_OAUTH_CLIENT_SECRET`.
 
-Auth.js config includes:
-- `access_type=offline`
-- `prompt=consent`
-
----
-
-## Privacy model
-Default capture **only sends**:
-- `url`
-- `title`
-- `selected_text` (if any)
-
-Optional per‑save:
-- `context_snippet` (first ~2000 chars of text) only when user checks **Expand context**
-
-The system **never** sends full HTML by default.
-
----
-
-## API overview (web app)
-Routes implemented in `apps/web/app/api`:
-
-- `POST /api/parse`
-  - Server‑side AI call, strict zod validation
-  - On schema failure: one retry with stricter JSON‑only prompt
-- `POST /api/schedule/suggest`
-  - Uses calendar timezone + free/busy to propose blocks
-- `POST /api/schedule/approve`
-  - Creates calendar events (if approved)
-  - Optional deadline event toggle
-  - Atomic usage counter increment
-- `GET /api/destinations`
-  - Lists calendars + Notion DBs
-- `POST /api/calendars/default`
-  - Sets default calendar
-- `POST /api/extension/token`
-  - Issues one‑time extension token (user‑scoped)
-- Stripe:
-  - `POST /api/stripe/checkout`
-  - `POST /api/stripe/portal`
-  - `POST /api/stripe/webhook`
-- Notion:
-  - `GET /api/notion/connect`
-  - `GET /api/notion/callback`
-
----
-
-## Scheduling engine (MVP rules)
-Implemented in `packages/scheduler`:
-
-- **Opportunity**
-  - Schedule between now and `(deadline - bufferDays)`
-  - Front‑load earlier blocks if available
-- **Paper**
-  - Schedule within the next 7–14 days based on preferences
-- **Outreach**
-  - 20–45 min block + optional follow‑up in 3–7 days
-- **Constraints**
-  - Working hours by day
-  - Max blocks/day
-  - “No scheduling after X pm”
-  - Block size + effort estimates
-
-Output labels:
-```
-Work: {Short Title} (Block i/n)
-```
-
----
-
-## Parsing output schema
-Strict JSON schema in `packages/shared`:
-
-```json
-{
-  "type": "paper|opportunity|outreach",
-  "title": "string",
-  "url": "string",
-  "deadline": "ISO8601 | null",
-  "deadline_tz": "IANA | null",
-  "deadline_raw": "string | null",
-  "confidence": { "type": 0-1, "deadline": 0-1, "requirements": 0-1, "effort": 0-1 },
-  "requirements": ["string"],
-  "deliverables": ["string"],
-  "suggested_effort_minutes": "number | null",
-  "suggested_block_minutes": "number | null",
-  "summary": "string (<= 400 chars)",
-  "notes": ["string"]
-}
-```
-
----
-
-## Notion (MVP mapping)
-To avoid schema‑mismatch failures:
-
-- Required mapping: **Title + URL**
-- If Type/Deadline/Status/Summary properties aren’t mapped:
-  - They go into the page body instead
-- “Recommended template” button is reserved for a later iteration
-
----
-
-## Entitlements (plans)
-Server‑side enforcement only. Never trust client.
-
-**FREE**
-- max_calendars = 1
-- max_notion_workspaces = 1
-- max_notion_dbs = 1
-- saves_per_month = 30
-
-**PRO**
-- max_calendars = 3
-- max_notion_workspaces = 1
-- max_notion_dbs = 3
-- saves_per_month = unlimited
-
-**POWER**
-- max_calendars = 10
-- max_notion_workspaces = 3
-- max_notion_dbs = 10
-- saves_per_month = unlimited
-
----
-
-## Usage counting (free tier)
-Uses `usage_monthly (user_id, yyyymm, saves_count)`:
-- Incremented in the same transaction as `items` insert
-- Checked on approve/save to enforce free‑tier 30 saves/month
-
----
-
-## Development notes
-### Google Calendar timezones
-Calendar timezone is stored per calendar (`calendars.time_zone`) to avoid off‑by‑hours scheduling.
-
-### Deadline events
-Deadline event creation is optional and user‑controlled:
-- Default **ON** for opportunities
-- Default **OFF** for paper/outreach
-
-### Tokens & encryption
-OAuth refresh/access tokens are encrypted at rest using AES‑256‑GCM (`ENCRYPTION_KEY`).
-
----
-
-## Testing
-Scheduler unit tests in `packages/scheduler/test`.
-
-Run:
+## Database migration
 ```bash
-pnpm -C packages/scheduler test
+pnpm db:generate
+pnpm db:migrate
 ```
 
----
+## Local development
+```bash
+pnpm install
+pnpm dev
+```
 
-## Troubleshooting
-**No refresh token from Google**
-- Ensure `access_type=offline` + `prompt=consent`
-- Ensure the OAuth consent screen is in testing/production mode
+App URL: `http://localhost:3000`
 
-**Free/busy returns empty**
-- Confirm scopes include both `calendar.events` and `calendar.readonly`
-- Confirm calendar ID is correct
+## Required routes
+- `POST /api/capture`
+- `POST /api/propose`
+- `POST /api/clip`
+- `POST /api/approve`
+- `GET /api/me`
+- `POST /api/extension/token`
+- `POST /api/integrations/google/connect`
+- `POST /api/integrations/google/disconnect`
+- `POST /api/integrations/notion/connect`
+- `GET /api/integrations/notion/callback`
+- `POST /api/integrations/notion/disconnect`
+- `GET/POST /api/settings/destinations`
+- `GET/POST /api/settings/privacy`
+- `GET /extension/connect`
+- `GET /extension/settings`
 
-**Extension can’t connect**
-- Verify `http://localhost:3000` is running
-- Ensure extension was loaded from `apps/extension`
-- Re‑connect if token expired
+## Extension handshake contract
+1. Extension opens `/extension/connect`.
+2. If unauthenticated, user is redirected to sign in.
+3. App issues short-lived token via `/api/extension/token`.
+4. Page posts `{ source: "aschedual-extension-connect", token }` to window.
+5. Extension stores token and uses Bearer auth.
 
----
+Canonical extension settings URL:
+- `/settings/integrations?source=extension`
 
-## License
-TBD
+## Secret-safe checks
+Run before commit/push:
+```bash
+pnpm run check:no-secrets
+pnpm run prepush:verify
+```
+
+## Vercel deployment
+1. Create a new Vercel project from this repository.
+2. Set **Root Directory** to `apps/web`.
+3. Add all required environment variables in Vercel Project Settings.
+4. Set production `AUTH_URL` to your deployed domain.
+5. Redeploy after setting OAuth redirect URIs for production.

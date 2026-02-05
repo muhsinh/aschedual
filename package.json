@@ -3,13 +3,19 @@
   "private": true,
   "packageManager": "pnpm@10.18.3",
   "scripts": {
+    "dev": "pnpm -C apps/web dev",
     "dev:web": "pnpm -C apps/web dev",
-    "dev:ext": "pnpm -C apps/extension dev",
-    "build": "pnpm -r build",
-    "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
+    "dev:ext": "echo 'Extension scaffold only. No dev server implemented.'",
+    "build": "pnpm -C apps/web build",
+    "start": "pnpm -C apps/web start",
+    "lint": "pnpm -C apps/web lint",
+    "format": "prettier --check .",
+    "test": "echo 'No test suite configured at the workspace root.'",
     "db:generate": "pnpm -C apps/web db:generate",
-    "db:migrate": "pnpm -C apps/web db:migrate"
+    "db:migrate": "pnpm -C apps/web db:migrate",
+    "db:studio": "pnpm -C apps/web db:studio",
+    "check:no-secrets": "bash ./scripts/check-no-secrets.sh",
+    "prepush:verify": "bash ./scripts/prepush-verify.sh"
   },
   "devDependencies": {
     "eslint": "^9.8.0",
