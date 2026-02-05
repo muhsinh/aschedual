@@ -91,6 +91,20 @@ export default function LandingPage() {
           </Reveal>
         </section>
       ))}
+
+      <footer className="border-t border-border px-6 py-10">
+        <div className="mx-auto flex w-full max-w-content items-center justify-between text-sm text-muted">
+          <p>Aschedual</p>
+          <div className="flex items-center gap-4">
+            <Link href="/legal/privacy" className="hover:text-foreground">
+              Privacy
+            </Link>
+            <Link href="/legal/terms" className="hover:text-foreground">
+              Terms
+            </Link>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
