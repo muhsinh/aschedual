@@ -23,6 +23,18 @@ function parseScopes(scope: string | null | undefined) {
 
 export const authConfig: NextAuthConfig = {
   secret: process.env.AUTH_SECRET,
+  debug: true,
+  logger: {
+    error(code, ...message) {
+      console.error("[auth][error]", code, ...message);
+    },
+    warn(code, ...message) {
+      console.warn("[auth][warn]", code, ...message);
+    },
+    debug(code, ...message) {
+      console.log("[auth][debug]", code, ...message);
+    }
+  },
   session: { strategy: "jwt" },
   providers: [
     Google({
@@ -44,11 +56,17 @@ export const authConfig: NextAuthConfig = {
         return false;
       }
 
-      const userId = await upsertUser({
-        email: user.email,
-        name: user.name,
-        image: user.image
-      });
+      let userId: string;
+      try {
+        userId = await upsertUser({
+          email: user.email,
+          name: user.name,
+          image: user.image
+        });
+      } catch (error) {
+        console.error("[auth] upsertUser failed", error);
+        throw error;
+      }
 
       if (account?.provider === "google" && account.access_token) {
         await upsertIntegration({
