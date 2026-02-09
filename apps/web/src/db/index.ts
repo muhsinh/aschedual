@@ -12,7 +12,8 @@ function createDb() {
 
   const client = postgres(connectionString, {
     max: 5,
-    ssl: "require"
+    ssl: "require",
+    prepare: false
   });
 
   return drizzle(client, { schema });
