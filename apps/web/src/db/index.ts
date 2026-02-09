@@ -5,7 +5,8 @@ import * as schema from "./schema";
 let dbInstance: ReturnType<typeof drizzle> | null = null;
 
 function createDb() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString =
+    process.env.DATABASE_URL ?? process.env.POSTGRES_URL ?? "";
   if (!connectionString) {
     throw new Error("DATABASE_URL is not set");
   }
